@@ -18,40 +18,43 @@ call s:InitVariable('g:AlternateExtensionMappings', [{'.cpp' : '.h', '.h' : '.hp
 call s:InitVariable('g:AlternatePaths', ['.', '../itf', '../include', '../src'])
 
 function! s:Alternate()
+    let file_components = split(expand("%:t"), '\.')
     " everything after the first dot
-    let file_extension = '.' . join(split(expand("%:t"), '\.')[1:], '.')
+    let file_extension = '.' . join(file_components[1:], '.')
 
-    let is_alternate_defined = 0
-    for alternate_extension_mapping in g:AlternateExtensionMappings
-        if !has_key(alternate_extension_mapping, file_extension)
-            let is_alternate_defined = 1
-            continue
-        endif
-
-        let file_path = expand("%:p:h")
-        " everything before the first dot
-        let filename_without_extension = split(expand("%:t"), '\.')[0]
-
-        let alternate_extension = alternate_extension_mapping[file_extension]
-        while !empty(alternate_extension) && alternate_extension != file_extension
-            for alternate_path in g:AlternatePaths
-                let alternate_file_path = file_path . '/' . alternate_path . '/' . filename_without_extension . alternate_extension
-                if filereadable(alternate_file_path)
-                    " Switch to the alternate file, modify the file path to be as
-                    " short as possible, without any dot dot entries.
-                    exe 'e ' . fnamemodify(alternate_file_path, ":p:.")
-                    return
-                endif
-            endfor
-            let alternate_extension = alternate_extension_mapping[alternate_extension]
-        endwhile
-    endfor
-
-    if !is_alternate_defined
+    let alternate_extension_mapping = s:GetMappingForExtension(file_extension)
+    if empty(alternate_extension_mapping)
         call s:AlternateWarning('no alternate extension configured for extension ' . file_extension)
-    else
-        call s:AlternateWarning('no alternate file found')
+        return
     endif
+
+    let file_path = expand("%:p:h")
+    " everything before the first dot
+    let filename_without_extension = file_components[0]
+
+    let alternate_extension = alternate_extension_mapping[file_extension]
+    while !empty(alternate_extension) && alternate_extension != file_extension
+        for alternate_path in g:AlternatePaths
+            let alternate_file_path = file_path . '/' . alternate_path . '/' . filename_without_extension . alternate_extension
+            if filereadable(alternate_file_path)
+                " Switch to the alternate file, modify the file path to be as
+                " short as possible, without any dot dot entries.
+                exe 'e ' . fnamemodify(alternate_file_path, ":p:.")
+                return
+            endif
+        endfor
+        let alternate_extension = alternate_extension_mapping[alternate_extension]
+    endwhile
+
+    call s:AlternateWarning('no alternate file found')
+endfun
+
+function! s:GetMappingForExtension(extension)
+    for mapping in g:AlternateExtensionMappings
+        if has_key(mapping, a:extension)
+            return mapping
+        endif
+    endfor
 endfun
 
 function! s:AlternateWarning(msg)
